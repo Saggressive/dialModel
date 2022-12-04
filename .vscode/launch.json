@@ -1,0 +1,53 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "pretrain",
+            "type": "python",
+            "request": "launch",
+            "program": "/mmu_nlp/wuxing/suzhenpeng/Condenser/run_pre_training.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--output_dir","output" ,
+                "--model_name_or_path", "bert-base-uncased" ,
+                "--do_train" ,
+                "--save_steps" ,"20000" ,
+                "--per_device_train_batch_size", "4" ,
+                "--gradient_accumulation_steps", "1" ,
+                "--fp16",
+                "--warmup_ratio", "0.1" ,
+                "--learning_rate", "1e-4" ,
+                "--num_train_epochs", "1" ,
+                "--overwrite_output_dir", 
+                "--dataloader_num_workers", "32" ,
+                "--n_head_layers", "2" ,
+                "--skip_from", "6" ,
+                "--max_seq_length" ,"256" ,
+                "--train_dir", "demo" ,
+                "--weight_decay", "0.01" ,
+                "--late_mlm"
+            ],
+            "justMyCode": false,
+            "env":{
+                "CUDA_VISIBLE_DEVICES":"2"
+            },
+        },
+        {
+            "name": "preproc",
+            "type": "python",
+            "request": "launch",
+            "program": "/mmu_nlp/wuxing/suzhenpeng/Condenser/helper/create_train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--tokenizer_name", "bert-base-uncased" ,
+                "--file","captions.txt",
+                "--save_to", "proc_data",
+                "--max_len", "256"
+            ],
+            "justMyCode": false
+        }
+    ]
+}
