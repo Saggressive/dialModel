@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from torch.utils.tensorboard import SummaryWriter
 import os
 from contextlib import nullcontext
 
@@ -34,6 +34,13 @@ logger = logging.getLogger(__name__)
 
 
 class CondenserPreTrainer(Trainer):
+
+    def create_writer(self,tensorboard_dir):
+        if dist.is_initialized() and dist.get_rank()==0:
+            if os.path.exists(tensorboard_dir)==False:
+                os.makedirs(tensorboard_dir)
+            self.writer = SummaryWriter(tensorboard_dir)
+
     def _save(self, output_dir: Optional[str] = None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
@@ -55,7 +62,7 @@ class CondenserPreTrainer(Trainer):
     def _remove_unused_columns(self, dataset, description: Optional[str] = None):
         # we are not going to do this in this
         # as collator will be generating new columns
-        pass
+        return dataset
 
     def create_optimizer_and_scheduler(self, num_training_steps: int):
         if self.args.warmup_ratio > 0:
@@ -65,8 +72,17 @@ class CondenserPreTrainer(Trainer):
 
     def compute_loss(self, model, inputs):
         labels = inputs.pop('labels')
-        return model(inputs, labels)
+        left = inputs.pop("left")
+        right = inputs.pop("right")
+        pos = inputs.pop("pos")
+        loss , sbo_loss , mlm_loss = model(inputs, labels, left, right, pos)
 
+        if dist.is_initialized() and dist.get_rank()==0:
+            self.writer.add_scalar('loss', loss.item(), self.state.global_step)
+            self.writer.add_scalar('sbo_loss', sbo_loss.item(), self.state.global_step)
+            self.writer.add_scalar('mlm_loss', mlm_loss.item(), self.state.global_step)
+            self.writer.add_scalar('lr', self.lr_scheduler.get_last_lr()[0], self.state.global_step)
+        return loss
     def prediction_step(
             self,
             model: nn.Module,

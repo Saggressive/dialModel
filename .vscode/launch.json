@@ -8,14 +8,14 @@
             "name": "pretrain",
             "type": "python",
             "request": "launch",
-            "program": "/mmu_nlp/wuxing/suzhenpeng/Condenser/run_pre_training.py",
+            "program": "/mmu_nlp/wuxing/suzhenpeng/dialModel/run_pre_training.py",
             "console": "integratedTerminal",
             "args": [
                 "--output_dir","output" ,
-                "--model_name_or_path", "bert-base-uncased" ,
+                "--model_name_or_path", "bert-base-chinese" ,
                 "--do_train" ,
                 "--save_steps" ,"20000" ,
-                "--per_device_train_batch_size", "4" ,
+                "--per_device_train_batch_size", "64" ,
                 "--gradient_accumulation_steps", "1" ,
                 "--fp16",
                 "--warmup_ratio", "0.1" ,
@@ -26,13 +26,13 @@
                 "--n_head_layers", "2" ,
                 "--skip_from", "6" ,
                 "--max_seq_length" ,"256" ,
-                "--train_dir", "demo" ,
+                "--train_dir", "pretrain" ,
                 "--weight_decay", "0.01" ,
                 "--late_mlm"
             ],
             "justMyCode": false,
             "env":{
-                "CUDA_VISIBLE_DEVICES":"2"
+                "CUDA_VISIBLE_DEVICES":"0"
             },
         },
         {

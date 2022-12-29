@@ -73,7 +73,7 @@ class DataTrainingArguments:
                     "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
-
+    tensorboard_dir: str = field(default='./tb_log')
     def __post_init__(self):
         if self.train_dir is not None:
             files = os.listdir(self.train_dir)
@@ -117,7 +117,7 @@ class ModelArguments:
     n_head_layers: int = field(default=2)
     skip_from: int = field(default=2)
     late_mlm: bool = field(default=False)
-
+    use_sbo: bool = field(default=False)
 
 @dataclass
 class CondenserPreTrainingArguments(TrainingArguments):

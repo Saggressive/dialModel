@@ -23,7 +23,7 @@ from datasets import load_dataset
 from arguments import DataTrainingArguments, ModelArguments, \
     CondenserPreTrainingArguments as TrainingArguments
 from data import CondenserCollator
-from modeling import CondenserForPretraining, RobertaCondenserForPretraining
+from modeling import CondenserForPretraining
 from trainer import CondenserPreTrainer as Trainer
 import transformers
 from transformers import (
@@ -33,12 +33,13 @@ from transformers import (
     HfArgumentParser,
     set_seed, )
 from transformers.trainer_utils import is_main_process
+# import torch
+# torch.cuda.current_device()
 
 logger = logging.getLogger(__name__)
 
 CONDENSER_TYPE_MAP = {
     'bert': CondenserForPretraining,
-    'roberta': RobertaCondenserForPretraining,
 }
 
 
@@ -160,7 +161,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
-
+    trainer.create_writer(tensorboard_dir=data_args.tensorboard_dir)
     # Training
     if training_args.do_train:
         model_path = (
