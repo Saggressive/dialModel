@@ -75,12 +75,14 @@ class CondenserPreTrainer(Trainer):
         left = inputs.pop("left")
         right = inputs.pop("right")
         pos = inputs.pop("pos")
-        loss , sbo_loss , mlm_loss = model(inputs, labels, left, right, pos)
+        scores = inputs.pop("scores")
+        loss , sbo_loss , mlm_loss ,cl_loss = model(inputs, labels, left, right, pos,scores)
 
         if dist.is_initialized() and dist.get_rank()==0:
             self.writer.add_scalar('loss', loss.item(), self.state.global_step)
             self.writer.add_scalar('sbo_loss', sbo_loss.item(), self.state.global_step)
             self.writer.add_scalar('mlm_loss', mlm_loss.item(), self.state.global_step)
+            self.writer.add_scalar('cl_loss',cl_loss.item(), self.state.global_step)
             self.writer.add_scalar('lr', self.lr_scheduler.get_last_lr()[0], self.state.global_step)
         return loss
     def prediction_step(

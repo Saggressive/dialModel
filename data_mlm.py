@@ -150,13 +150,43 @@ class CondenserCollator(DataCollatorForWholeWordMask):
                 current_mask_len = num_to_predict - len(covered_indexes)
             start = np.random.choice(len(cand_indexes)-current_mask_len,1)[0]
             end = start + current_mask_len
+
             for i in range(start,end):
                 index_set = cand_indexes[i]
                 for index in index_set:
+                    #for sbo
+                    # if index==0 or index==len(input_tokens):
+                    #     continue
                     covered_indexes.add(index)
          
         mask_labels = [1 if i in covered_indexes else 0 for i in range(len(input_tokens))]
-        return mask_labels
+        left,right=[],[]
+        pos_ids = []
+        boundary_left = -1
+        boundary_right = len(mask_labels)
+        for index in range(0,len(mask_labels)):
+            if mask_labels[index]==1:
+                #后面拼接cls 所以要加1
+                left.append(boundary_left+1)
+                pos_ids.append(index-boundary_left)
+            else:
+                left.append(0)
+                boundary_left = index
+                pos_ids.append(0)
+
+        left.append(0)
+        pos_ids.append(0)
+        
+        for index in reversed(range(0,len(mask_labels))):
+            if mask_labels[index]==1:
+                #后面拼接cls 所以要加1
+                right.append(boundary_right+1)
+            else:
+                right.append(0)
+                boundary_right = index
+        right.append(0)
+        right=list(reversed(right))
+        return mask_labels,left,right,pos_ids
 
     def _truncate(self, example: List[int]):
         tgt_len = self.max_seq_length - self.tokenizer.num_special_tokens_to_add(False)
@@ -184,15 +214,21 @@ class CondenserCollator(DataCollatorForWholeWordMask):
         encoded_examples = []
         masks = []
         mlm_masks = []
-
+        all_left = []
+        all_right = []
+        all_pos = []
         for e in examples:
             e_trunc = self._truncate(e['text'])
             tokens = [self.tokenizer._convert_id_to_token(tid) for tid in e_trunc]
-            mlm_mask = self._span_mask(tokens)
+            mlm_mask,left,right,pos_ids = self._span_mask(tokens)
             mlm_mask = self._pad([0] + mlm_mask)
+            left = self._pad([0] + left)
+            right = self._pad([0] + right)
+            pos_ids = self._pad([0] + pos_ids)
             mlm_masks.append(mlm_mask)
-
-            
+            all_left.append(left)
+            all_right.append(right)
+            all_pos.append(pos_ids)
             encoded = self.tokenizer.encode_plus(
                 e_trunc,
                 add_special_tokens=True,
@@ -227,6 +263,9 @@ class CondenserCollator(DataCollatorForWholeWordMask):
             "input_ids": inputs,
             "labels": labels,
             "attention_mask": torch.stack(masks,dim=0),
+            "left": torch.tensor(all_left, dtype=torch.long),
+            "right":torch.tensor(all_right, dtype=torch.long),
+            "pos":torch.tensor(all_pos, dtype=torch.long)
         }
 
         return batch

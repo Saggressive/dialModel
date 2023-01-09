@@ -3,3 +3,9 @@ spanmask/
 spanmask_sbo/
 tb_log/
 crosswoz/
+crosswoz_mlm_data/
+pretrain/
+proc_data/
+space_tb_log/
+space/
+

@@ -29,7 +29,7 @@ from transformers.activations import ACT2FN
 from arguments import DataTrainingArguments, ModelArguments, CoCondenserPreTrainingArguments
 from transformers import TrainingArguments
 import logging
-
+import torch.nn.functional as F
 logger = logging.getLogger(__name__)
 
 class BertIntermediate(nn.Module):
@@ -65,6 +65,35 @@ class MLP(nn.Module):
         last_ouput = self.out(intermediate_output)
         return last_ouput
 
+class ProjectionMLP(nn.Module):
+    def __init__(self, size):
+        super().__init__()
+        in_dim = size
+        hidden_dim = size * 2
+        out_dim = size
+        affine=False
+        list_layers = [nn.Linear(in_dim, hidden_dim, bias=False),
+                       nn.BatchNorm1d(hidden_dim),
+                       nn.ReLU(inplace=True)]
+        list_layers += [nn.Linear(hidden_dim, out_dim, bias=False),
+                        nn.BatchNorm1d(out_dim, affine=affine)]
+        self.net = nn.Sequential(*list_layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+class Similarity(nn.Module):
+        """
+        Dot product or cosine similarity
+        """
+        def __init__(self, temp):
+            super().__init__()
+            self.temp = temp
+            self.cos = nn.CosineSimilarity(dim=-1)
+
+        def forward(self, x, y):
+            return self.cos(x, y) / self.temp
+
 class CondenserForPretraining(nn.Module):
     def __init__(
         self,
@@ -81,21 +110,44 @@ class CondenserForPretraining(nn.Module):
         self.model_args = model_args
         self.train_args = train_args
         self.data_args = data_args
+        self.proj_mlp = ProjectionMLP(size=768)
+        self.sim = Similarity(temp=0.07)
 
-    def forward(self, model_input, labels, left, right, pos_ids):
+    def cl_loss(self,logits,labels):
+        logits=F.log_softmax(logits)
+        loss = logits * labels
+        loss = torch.mean(loss)
+        return -loss
+
+    def forward(self, model_input, labels, left, right, pos_ids,scores):
 
         attention_mask = self.lm.get_extended_attention_mask(
             model_input['attention_mask'],
             model_input['attention_mask'].shape,
             model_input['attention_mask'].device
         )
-
+        mlm_input = {"input_ids":model_input["input_ids_mlm"],"attention_mask":model_input["attention_mask"]}
+        cl_input = {"input_ids":model_input["input_ids"],"attention_mask":model_input["attention_mask"]}
         lm_out: MaskedLMOutput = self.lm(
-            **model_input,
+            **mlm_input,
             labels=labels,
             output_hidden_states=True,
             return_dict=True
         )
+        cl_out0:MaskedLMOutput = self.lm(
+            **cl_input,
+            output_hidden_states=True,
+            return_dict=True
+        )
+        cl_out1:MaskedLMOutput = self.lm(
+            **cl_input,
+            output_hidden_states=True,
+            return_dict=True
+        )
+        sent0,sent1=cl_out0.hidden_states[-1][:,0],cl_out1.hidden_states[-1][:,0]
+        z1,z2 = self.proj_mlp(sent0),self.proj_mlp(sent1)
+        sim = self.sim(z1.unsqueeze(1), z2.unsqueeze(0))
+        cl_loss = self.cl_loss(sim, scores)
 
         sbo_loss = torch.tensor(0,dtype=torch.float)
         if self.model_args.use_sbo:
@@ -122,7 +174,9 @@ class CondenserForPretraining(nn.Module):
             loss = lm_out.loss + sbo_loss
         else:
             loss = lm_out.loss
-        return loss , sbo_loss , lm_out.loss
+
+        loss = loss + cl_loss
+        return loss , sbo_loss , lm_out.loss,cl_loss 
 
 
     def mlm_loss(self, hiddens, labels):

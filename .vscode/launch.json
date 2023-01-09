@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--output_dir","output" ,
-                "--model_name_or_path", "bert-base-chinese" ,
+                "--model_name_or_path", "hfl/chinese-bert-wwm-ext" ,
                 "--do_train" ,
                 "--save_steps" ,"20000" ,
                 "--per_device_train_batch_size", "64" ,
@@ -26,7 +26,7 @@
                 "--n_head_layers", "2" ,
                 "--skip_from", "6" ,
                 "--max_seq_length" ,"256" ,
-                "--train_dir", "pretrain" ,
+                "--train_dir", "crosswoz/proc_data" ,
                 "--weight_decay", "0.01" ,
                 "--late_mlm"
             ],

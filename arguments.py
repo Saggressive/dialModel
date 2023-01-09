@@ -73,7 +73,7 @@ class DataTrainingArguments:
                     "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
-    tensorboard_dir: str = field(default='./tb_log')
+    tensorboard_dir: str = field(default='./space_tb_log')
     def __post_init__(self):
         if self.train_dir is not None:
             files = os.listdir(self.train_dir)

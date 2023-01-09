@@ -148,7 +148,11 @@ class CondenserCollator(DataCollatorForWholeWordMask):
             current_mask_len = np.random.choice(list(range(1,11)),1,replace=True,p=self.span_p)[0]
             if len(covered_indexes) + current_mask_len > num_to_predict:
                 current_mask_len = num_to_predict - len(covered_indexes)
-            start = np.random.choice(len(cand_indexes)-current_mask_len,1)[0]
+            # try:
+            #     start = np.random.choice(len(cand_indexes)-current_mask_len+1,1)[0]
+            # except:
+            #     print("a")
+            start = np.random.choice(len(cand_indexes)-current_mask_len+1,1)[0]
             end = start + current_mask_len
 
             for i in range(start,end):
@@ -210,6 +214,15 @@ class CondenserCollator(DataCollatorForWholeWordMask):
         assert len(seq) <= tgt_len
         return seq + [val for _ in range(tgt_len - len(seq))]
 
+    def jaccard(self,i,j):
+        i=set(i)
+        j=set(j)
+        a=len(i&j)
+        b=len(i|j) if len(i|j)>0 else 1
+        # if len(i|j)==0:
+        #     print("a")
+        return a*1.0/b
+
     def __call__(self, examples: List[Dict[str, List[int]]]):
         encoded_examples = []
         masks = []
@@ -217,8 +230,13 @@ class CondenserCollator(DataCollatorForWholeWordMask):
         all_left = []
         all_right = []
         all_pos = []
+        all_intent,all_domain,all_solt,all_value = [],[],[],[]
         for e in examples:
             e_trunc = self._truncate(e['text'])
+            all_intent.append(e["intent"])
+            all_domain.append(e["domain"])
+            all_solt.append(e["solt"])
+            all_value.append(e["value"])
             tokens = [self.tokenizer._convert_id_to_token(tid) for tid in e_trunc]
             mlm_mask,left,right,pos_ids = self._span_mask(tokens)
             mlm_mask = self._pad([0] + mlm_mask)
@@ -253,19 +271,31 @@ class CondenserCollator(DataCollatorForWholeWordMask):
                 pass
             masks.append(att_mask)
             encoded_examples.append(encoded['input_ids'])
-
+        all_act=[all_intent,all_domain,all_solt,all_value]
+        all_scores = []
+        for act in all_act:
+            scores = torch.zeros(size=(len(examples),len(examples)))
+            for i in range(len(act)):
+                for j in range(len(act)):
+                    str_i,str_j=act[i],act[j]
+                    scores[i][j]=self.jaccard(str_i, str_j)
+            all_scores.append(scores)
+        all_scores = torch.stack(all_scores)
+        all_scores = torch.mean(all_scores,dim=0)
         inputs, labels = self.mask_tokens(
             torch.tensor(encoded_examples, dtype=torch.long),
             torch.tensor(mlm_masks, dtype=torch.long)
         )
 
         batch = {
-            "input_ids": inputs,
+            "input_ids_mlm": inputs,
+            "input_ids":torch.tensor(encoded_examples,dtype=torch.long),
             "labels": labels,
             "attention_mask": torch.stack(masks,dim=0),
             "left": torch.tensor(all_left, dtype=torch.long),
             "right":torch.tensor(all_right, dtype=torch.long),
-            "pos":torch.tensor(all_pos, dtype=torch.long)
+            "pos":torch.tensor(all_pos, dtype=torch.long),
+            "scores":all_scores
         }
 
         return batch
